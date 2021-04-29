@@ -43,6 +43,20 @@ class Battle():
 
         if p_turn is False:
             self.enemy_turn()
+        else:
+            self.player_turn()
+
+    def player_turn(self):
+        if self.model["player"]["p_sleep"]:
+            self.model["sleep_count"] -= 1
+            if random.randint(1,2) == 2 or self.model["sleep_count"] <= 0:
+                self.model["player"]["p_sleep"] = False
+                self.model["sleep_count"] = 6
+            if self.model["player"]["p_sleep"] is False:
+                self.view.append_output("You wake up!")
+            else:
+                self.view.append_output("You're still asleep...")
+                self.enemy_turn()
 
     def end_fight(self):
         self.fight_over.set(True)
@@ -109,6 +123,13 @@ class Battle():
         else:
             self.enemy_turn()
 
+    def is_player_defeated(self):
+        if self.model["player"]["hp"] <= 0:
+            self.view.append_output(f'''You have been defeated by the {self.model["enemy"]["name"]}...''')
+            self.end_fight()
+        else:
+            self.player_turn()
+
     def enemy_turn(self):
         ''' Enemy turn start'''
         if self.model["enemy"]["e_sleep"] > 0:
@@ -127,6 +148,16 @@ class Battle():
                 self.enemy_casts_heal(False)
             elif chosen_attack == "healmore":
                 self.enemy_casts_heal(True)
+            elif chosen_attack == "sleep":
+                self.enemy_casts_sleep()
+            elif chosen_attack == "stopspell":
+                self.enemy_casts_stopspell()
+            elif chosen_attack == "fire":
+                self.enemy_breathes_fire(False)
+            elif chosen_attack == "strongfire":
+                self.enemy_breathes_fire(True)
+            else:
+                self.view.append_output("Enemy tried to attack with something not programmed yet!!")
 
     def enemy_heal_thresh(self):
         return self.model["enemy"]["hp"] / self.model["enemy"]["maxhp"] < 0.25
@@ -204,9 +235,7 @@ class Battle():
         self.view.update_ptext(self.model["player"])
 
         self.view.append_output(f'''{self.model["enemy"]["name"]} attacks! {self.model["enemy"]["name"]} hits you for {damage_dealt} damage.\n''')
-        if self.model["player"]["hp"] <= 0:
-            self.view.append_output(f'''You have been defeated by the {self.model["enemy"]["name"]}...''')
-            self.end_fight()
+        self.is_player_defeated()
 
     def enemy_casts_hurt(self, more):
         ''' Enemy handling of hurt and hurtmore'''
@@ -234,9 +263,7 @@ class Battle():
 
         self.model["player"]["hp"] -= hurt_dmg
         self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}! {self.model["player"]["name"]} is hurt for {hurt_dmg} damage!''')
-        if self.model["player"]["hp"] <= 0:
-            self.view.append_output(f'''You have been defeated by the {self.model["enemy"]["name"]}...''')
-            self.end_fight()
+        self.is_player_defeated()
 
     def enemy_casts_heal(self, more):
         ''' Enemy handling of heal and healmore'''
@@ -257,6 +284,57 @@ class Battle():
         self.model["enemy"]["hp"] += heal_amt
         self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}! {self.model["enemy"]["name"]} is healed {heal_amt} hit points!''')
         self.view.update_einfo(self.model["enemy"])
+        self.player_turn()
+
+    def enemy_casts_sleep(self):
+        '''Enemy attempts to cast sleep'''
+        spell_name = "Sleep"
+        if self.model["enemy"]["e_stop"]:
+            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!''')
+        else:
+            self.model["player"]["p_sleep"] = True
+            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}. You fall asleep!!''')
+        self.player_turn()
+
+    def enemy_casts_stopspell(self):
+        ''' Enemy attempts to cast stopspell. 50% chance of failure'''
+        spell_name = "Stopspell"
+        if self.model["enemy"]["e_stop"]:
+            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!''')
+        elif random.randint(1,2) == 2:
+            self.model["player"]["p_stop"] = True
+            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}! Your magic has been blocked!''')
+        else:
+            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but the spell fails!''')
+        self.player_turn()
+
+    def enemy_breathes_fire(self, more):
+        ''' Enemy handling of breath attacks'''
+        spell_name = "strong flames at you!" if more else "fire"
+        if self.model["enemy"]["e_stop"]:
+            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!''')
+            return
+
+        fire_high = [16, 23]
+        fire_low = [10, 14]
+        strongfire_high = [65, 72]
+        strongfire_low = [42, 48]
+
+        fire_def = self.model["player"]["fire_def"]
+        fire_dmg = 0
+
+        if fire_def and more:
+            fire_dmg = random.randint(strongfire_low[0], strongfire_low[1])
+        elif fire_def and not more:
+            fire_dmg = random.randint(fire_low[0], fire_low[1])
+        elif more:
+            fire_dmg = random.randint(strongfire_high[0], strongfire_high[1])
+        else:
+            fire_dmg = random.randint(fire_high[0], fire_high[1])
+
+        self.model["player"]["hp"] -= fire_dmg
+        self.view.append_output(f'''The {self.model["enemy"]["name"]} breathes {spell_name}! {self.model["player"]["name"]} is hurt for {fire_dmg} damage!''')
+        self.is_player_defeated()
 
     def use_herb(self, *_):
         ''' Handle herb consumption'''
