@@ -123,6 +123,10 @@ class Battle():
                 self.enemy_casts_hurt(False)
             elif chosen_attack == "hurtmore":
                 self.enemy_casts_hurt(True)
+            elif chosen_attack == "heal":
+                self.enemy_casts_heal(False)
+            elif chosen_attack == "healmore":
+                self.enemy_casts_heal(True)
 
     def enemy_heal_thresh(self):
         return self.model["enemy"]["hp"] / self.model["enemy"]["maxhp"] < 0.25
@@ -233,6 +237,26 @@ class Battle():
         if self.model["player"]["hp"] <= 0:
             self.view.append_output(f'''You have been defeated by the {self.model["enemy"]["name"]}...''')
             self.end_fight()
+
+    def enemy_casts_heal(self, more):
+        ''' Enemy handling of heal and healmore'''
+        spell_name = "Healmore" if more else "Heal"
+        if self.model["enemy"]["e_stop"]:
+            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!''')
+            return
+
+        heal_range = [20, 27]
+        healmore_range = [85, 100]
+
+        heal_max = self.model["enemy"]["maxhp"] - self.model["enemy"]["hp"]
+
+        heal_rand = random.randint(healmore_range[0], healmore_range[1]) if more else random.randint(heal_range[0], heal_range[1])
+
+        heal_amt = heal_rand if heal_rand < heal_max else heal_max
+
+        self.model["enemy"]["hp"] += heal_amt
+        self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}! {self.model["enemy"]["name"]} is healed {heal_amt} hit points!''')
+        self.view.update_einfo(self.model["enemy"])
 
     def use_herb(self, *_):
         ''' Handle herb consumption'''
