@@ -4,11 +4,9 @@
 
 import tkinter as tk
 import tkinter.scrolledtext as scrolledtext
-
 import inspect
 from items import w_strings, a_strings, s_strings
 from enemy_dict import e_strings
-
 
 class View(tk.Tk):
     '''
@@ -33,8 +31,6 @@ class View(tk.Tk):
         self.chosen_magic.set("None")
         self.spell_strings = []
         self.curr_frame = None
-
-
 
         # Main window basics
         self.title("DQ1 Battle Simulator")
@@ -248,6 +244,4 @@ class MainFrame(tk.Frame):
             wrap=tk.WORD
             )
         self.txt.grid(column=2, row=0, padx=10, ipadx=3)
-        self.txt.insert('1.0', ('Dragon Quest 1 Battle Simulator.'
-            'Please select an enemy, then click fight.'))
         self.txt.configure(state="disabled")

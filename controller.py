@@ -1,13 +1,13 @@
 '''
 controller.py - Core controller for the simulation
 '''
-
+import tkinter as tk
 import pprint
 import view as View
 import items
 import levels
 import enemy_dict
-import Enemy
+import enemy
 import battle as Battle
 
 class Controller():
@@ -16,6 +16,9 @@ class Controller():
         self.model = model
         self.view = view
         self.view.update_ptext(self.model["player"])
+        self.output = model["output"]
+        self.output.attach(self)
+        self.output.output = "DQ1 Battle Sim"
 
         self.battle = Battle.Battle(self.model, self.view)
         self.view.frames[View.SetupFrame].buy_herb_button.bind("<Button-1>", self.herb_inc)
@@ -28,6 +31,8 @@ class Controller():
         self.view.chosen_enemy.trace('w', self.update_einfo)
         self.battle.fight_over.trace('w', self.end_battle)
         self.view.frames[View.BattleFrame].show_model_btn.bind("<Button-1>", self.update_text)
+        #self.model["output"].attach(self)
+        #self.model["output"].output = "DQ1 Battle Sim"
 
     def update_frame(self, *args):
         ''' Tells view.ctrl_frame to change the frame'''
@@ -56,15 +61,16 @@ class Controller():
         Updates the main text box with output. When text is None, outputs the model and other
         debugging information
         '''
-        pp = pprint.PrettyPrinter()
-        p_model = pp.pformat(self.model)
+        #pp = pprint.PrettyPrinter()
+        #p_model = pp.pformat(self.model)
 
+        self.view.clear_output()
         self.view.main_frame.txt["state"] = 'normal'
 
-        if type(text) is str:
-            self.view.main_frame.txt.insert(1.0, text + "\n")
-        else:
-            self.view.main_frame.txt.insert(1.0, p_model + "\n\n" + str(self.view.chosen_magic.get()))
+        for line in text.output:
+            self.view.main_frame.txt.insert(tk.END, line + "\n")
+        #else:
+        #    self.view.main_frame.txt.insert(1.0, p_model + "\n\n" + str(self.view.chosen_magic.get()))
 
         self.view.main_frame.txt["state"] = "disabled"
 
@@ -83,7 +89,7 @@ class Controller():
         chosen_enemy = self.view.chosen_enemy.get()
         for _, v in enemy_dict.enemy_dict.items():
             if chosen_enemy == v["name"]:
-                self.model["enemy"] = Enemy.prep_enemy(v)
+                self.model["enemy"] = enemy.prep_enemy(v)
                 self.view.update_einfo(self.model["enemy"])
                 break
 
@@ -125,7 +131,7 @@ class Controller():
     def herb_inc(self, *_):
         '''Handles incrementing the herb count'''
         if self.model["player"]["herb_count"] >= 6:
-            self.update_text('''You cannot buy any more herbs.''')
+            self.output.output = '''You cannot buy any more herbs.\n'''
         else:
             self.model["player"]["herb_count"] += 1
             self.update_ptext(self.model["player"])

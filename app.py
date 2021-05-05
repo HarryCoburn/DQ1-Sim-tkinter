@@ -4,7 +4,7 @@ DQ1 Battle Simulator - App
 
 from view import View
 from controller import Controller
-from Model import model
+from model import model
 
 
 if __name__ == "__main__":

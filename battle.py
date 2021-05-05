@@ -10,12 +10,15 @@ import view as View
 
 class Battle():
     '''
-    Main battle class
+    Main battle controller
     '''
 
     def __init__(self, model, view):
         self.model = model
         self.view = view
+        self.output = model["output"]
+        self.p = PlayerBattle(model["player"], self.output)
+        self.e = None
         self.view.frames[View.BattleFrame].attack_btn.bind("<Button-1>", self.player_attack)
         self.view.frames[View.BattleFrame].herb_btn.bind("<Button-1>", self.use_herb)
         self.view.frames[View.BattleFrame].run_btn.bind("<Button-1>", self.run_away)
@@ -24,42 +27,41 @@ class Battle():
         self.fight_over.set(False)
         self.herb_range = (23, 30)
 
+
+    ## Core Fight Routines
+
     def setup_battle(self):
         '''Performs setup tasks for the battle prior to start'''
-        self.view.update_ptext(self.model["player"])
+        self.view.update_ptext(self.p.model)
         self.view.update_magic()
+        self.e = EnemyBattle(self.model["enemy"])
         self.view.show_frame(View.BattleFrame)
-        self.view.clear_output()
+        self.output.clear()
         self.do_fight()
 
-    def init_num(self, agi, mod = 1):
-        return agi * random.randint(1, 255) * mod
-
     def do_fight(self):
-        p_turn = self.init_num(self.model["player"]["agility"]) > self.init_num(self.model["enemy"]["agility"], 0.25)
+        '''Starts the battle loop'''
+        p_turn = self.p.agi * random.randint(1,255) > self.e.agi * random.randint(1, 255) * 0.25
 
         self.view.main_frame.txt["state"] = 'normal'
-        self.view.main_frame.txt.insert(tk.END, f'''You are fighting the {self.model["enemy"]["name"]}!\n''')
+        self.output.output = f'''You are fighting the {self.e.name}!\n'''
+        #self.model["output"].output =
 
         if p_turn is False:
+            self.output.output = f'''The {self.e.name} surprises you! Free attack!\n'''
             self.enemy_turn()
         else:
             self.player_turn()
 
-    def player_turn(self):
-        if self.model["player"]["p_sleep"]:
-            self.model["sleep_count"] -= 1
-            if random.randint(1,2) == 2 or self.model["sleep_count"] <= 0:
-                self.model["player"]["p_sleep"] = False
-                self.model["sleep_count"] = 6
-            if self.model["player"]["p_sleep"] is False:
-                self.view.append_output("You wake up!")
-            else:
-                self.view.append_output("You're still asleep...")
-                self.enemy_turn()
-
     def end_fight(self):
+        '''Triggers the flag that tells the controller battle is over'''
         self.fight_over.set(True)
+
+    def player_turn(self):
+        '''Runs at the start of player turn. Checks for sleep status and updates it, then waits for user to hit a button'''
+        is_asleep = self.p.is_asleep()
+        if is_asleep:
+            self.enemy_turn()
 
     def crit(self):
         return random.randint(1,32) == 1
@@ -103,29 +105,29 @@ class Battle():
             damage_dealt = 0
 
         if is_crit and not "voidCrit" in self.model["enemy"]:
-            self.view.main_frame.txt.insert(tk.END, '\nYou attack with an excellent attack!!\n')
+            self.output.output = '\nYou attack with an excellent attack!!\n'
         else:
-            self.view.main_frame.txt.insert(tk.END, '''\nYou attack!\n''')
+            self.output.output = '''\nYou attack!\n'''
 
         if e_dodged:
-            self.view.main_frame.txt.insert(tk.END, f'''But the {self.model["enemy"]["name"]} dodged your attack!\n''')
+            self.output.output = f'''But the {self.model["enemy"]["name"]} dodged your attack!\n'''
             self.enemy_attack()
         else:
-            self.view.main_frame.txt.insert(tk.END, f'''You hit {self.model["enemy"]["name"]} for {damage_dealt} points of damage!\n''')
+            self.output.output = f'''You hit {self.model["enemy"]["name"]} for {damage_dealt} points of damage!\n'''
             self.model["enemy"]["hp"] -= damage_dealt
             self.view.update_einfo(self.model["enemy"])
             self.is_enemy_defeated()
 
     def is_enemy_defeated(self):
         if self.model["enemy"]["hp"] <= 0:
-            self.view.main_frame.txt.insert(tk.END, f'''You have defeated the {self.model["enemy"]["name"]}!\n''')
+            self.output.output = f'''You have defeated the {self.model["enemy"]["name"]}!\n'''
             self.end_fight()
         else:
             self.enemy_turn()
 
     def is_player_defeated(self):
         if self.model["player"]["hp"] <= 0:
-            self.view.append_output(f'''You have been defeated by the {self.model["enemy"]["name"]}...''')
+            self.output.output = f'''You have been defeated by the {self.model["enemy"]["name"]}...'''
             self.end_fight()
         else:
             self.player_turn()
@@ -157,7 +159,7 @@ class Battle():
             elif chosen_attack == "strongfire":
                 self.enemy_breathes_fire(True)
             else:
-                self.view.append_output("Enemy tried to attack with something not programmed yet!!")
+                self.output.output = "Enemy tried to attack with something not programmed yet!!"
 
     def enemy_heal_thresh(self):
         return self.model["enemy"]["hp"] / self.model["enemy"]["maxhp"] < 0.25
@@ -201,25 +203,25 @@ class Battle():
 
     def enemy_flees(self):
         ''' Enemy runs away. End the combat'''
-        self.view.append_output(f'''The {self.model["enemy"]["name"]} flees from your superior strength!''')
+        self.output.output = f'''The {self.model["enemy"]["name"]} flees from your superior strength!'''
         self.fight_over.set(True)
 
     def enemy_asleep(self):
         ''' Handles the sleep logic when player puts the enemy to sleep'''
         if self.model["enemy"]["e_sleep"] == 2:
             self.model["enemy"]["e_sleep"] -= 1
-            self.view.append_output(f'''The {self.model["enemy"]["name"]} is asleep''')
+            self.output.output = f'''The {self.model["enemy"]["name"]} is asleep'''
         else:
             if random.randint(1,3) == 3:
-                self.view.append_output(f'''The {self.model["enemy"]["name"]} woke up!''')
+                self.output.output = f'''The {self.model["enemy"]["name"]} woke up!'''
                 self.model["enemy"]["e_sleep"] = 0
                 self.enemy_turn()
             else:
-                self.view.append_output(f'''The {self.model["enemy"]["name"]} is still asleep...''')
+                self.output.output = f'''The {self.model["enemy"]["name"]} is still asleep...'''
 
     def enemy_attack(self):
         '''Enemy attacks normally'''
-        self.view.append_output('''\nEnemy turn\n''')
+        self.output.output = '''\nEnemy turn\n'''
         hero_defense = (self.model["player"]["agility"] + self.model["player"]["armor"][1] + self.model["player"]["shield"][1]) // 2
         low = 0
         high = 0
@@ -234,14 +236,14 @@ class Battle():
         self.model["player"]["hp"] -= damage_dealt
         self.view.update_ptext(self.model["player"])
 
-        self.view.append_output(f'''{self.model["enemy"]["name"]} attacks! {self.model["enemy"]["name"]} hits you for {damage_dealt} damage.\n''')
+        self.output.output = f'''{self.model["enemy"]["name"]} attacks! {self.model["enemy"]["name"]} hits you for {damage_dealt} damage.\n'''
         self.is_player_defeated()
 
     def enemy_casts_hurt(self, more):
         ''' Enemy handling of hurt and hurtmore'''
         spell_name = "Hurtmore" if more else "Hurt"
         if self.model["enemy"]["e_stop"]:
-            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!''')
+            self.output.output = f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!'''
             return
 
         hurt_high = [3, 10]
@@ -262,14 +264,14 @@ class Battle():
             hurt_dmg = random.randint(hurt_high[0], hurt_high[1])
 
         self.model["player"]["hp"] -= hurt_dmg
-        self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}! {self.model["player"]["name"]} is hurt for {hurt_dmg} damage!''')
+        self.output.output = f'''The {self.model["enemy"]["name"]} casts {spell_name}! {self.model["player"]["name"]} is hurt for {hurt_dmg} damage!'''
         self.is_player_defeated()
 
     def enemy_casts_heal(self, more):
         ''' Enemy handling of heal and healmore'''
         spell_name = "Healmore" if more else "Heal"
         if self.model["enemy"]["e_stop"]:
-            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!''')
+            self.output.output = f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!'''
             return
 
         heal_range = [20, 27]
@@ -282,7 +284,7 @@ class Battle():
         heal_amt = heal_rand if heal_rand < heal_max else heal_max
 
         self.model["enemy"]["hp"] += heal_amt
-        self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}! {self.model["enemy"]["name"]} is healed {heal_amt} hit points!''')
+        self.output.output = f'''The {self.model["enemy"]["name"]} casts {spell_name}! {self.model["enemy"]["name"]} is healed {heal_amt} hit points!'''
         self.view.update_einfo(self.model["enemy"])
         self.player_turn()
 
@@ -290,29 +292,29 @@ class Battle():
         '''Enemy attempts to cast sleep'''
         spell_name = "Sleep"
         if self.model["enemy"]["e_stop"]:
-            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!''')
+            self.output.output = f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!'''
         else:
-            self.model["player"]["p_sleep"] = True
-            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}. You fall asleep!!''')
+            self.p.asleep = True
+            self.output.output = f'''The {self.model["enemy"]["name"]} casts {spell_name}. You fall asleep!!'''
         self.player_turn()
 
     def enemy_casts_stopspell(self):
         ''' Enemy attempts to cast stopspell. 50% chance of failure'''
         spell_name = "Stopspell"
         if self.model["enemy"]["e_stop"]:
-            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!''')
+            self.output.output = f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!'''
         elif random.randint(1,2) == 2:
             self.model["player"]["p_stop"] = True
-            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}! Your magic has been blocked!''')
+            self.output.output = f'''The {self.model["enemy"]["name"]} casts {spell_name}! Your magic has been blocked!'''
         else:
-            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but the spell fails!''')
+            self.output.output = f'''The {self.model["enemy"]["name"]} casts {spell_name}, but the spell fails!'''
         self.player_turn()
 
     def enemy_breathes_fire(self, more):
         ''' Enemy handling of breath attacks'''
         spell_name = "strong flames at you!" if more else "fire"
         if self.model["enemy"]["e_stop"]:
-            self.view.append_output(f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!''')
+            self.output.output = f'''The {self.model["enemy"]["name"]} casts {spell_name}, but their spell has been blocked!'''
             return
 
         fire_high = [16, 23]
@@ -333,19 +335,19 @@ class Battle():
             fire_dmg = random.randint(fire_high[0], fire_high[1])
 
         self.model["player"]["hp"] -= fire_dmg
-        self.view.append_output(f'''The {self.model["enemy"]["name"]} breathes {spell_name}! {self.model["player"]["name"]} is hurt for {fire_dmg} damage!''')
+        self.output.output = f'''The {self.model["enemy"]["name"]} breathes {spell_name}! {self.model["player"]["name"]} is hurt for {fire_dmg} damage!'''
         self.is_player_defeated()
 
     def use_herb(self, *_):
         ''' Handle herb consumption'''
         if self.model["player"]["herb_count"] <= 0:
-            self.view.append_output('''You have no herbs!''')
+            self.output.output = '''You have no herbs!'''
             return
         else:
             self.model["player"]["herb_count"] -= 1
 
         if self.model["player"]["hp"] >= self.model["player"]["maxhp"]:
-            self.view.append_output('''You eat a herb, but your hit points are already at maximum!\n''')
+            self.output.output = '''You eat a herb, but your hit points are already at maximum!\n'''
         else:
             low, high = self.herb_range
             heal_amt = random.randint(low, high)
@@ -353,7 +355,7 @@ class Battle():
             if heal_diff < heal_amt:
                 heal_amt = heal_diff
             self.model["player"]["hp"] += heal_amt
-            self.view.append_output(f'''You eat a herb and regain {heal_amt} hit points!\n''')
+            self.output.output = f'''You eat a herb and regain {heal_amt} hit points!\n'''
 
         self.enemy_turn()
 
@@ -363,13 +365,13 @@ class Battle():
         p_run_chance = random.randint(0, 254)
         e_block_chance = random.randint(0, 254)
         e_block_mod = run_modifiers[self.model["enemy"]["run"]]
-        self.view.main_frame.txt.insert(tk.END, '''You attempt to run away...\n''')
+        self.output.output = '''You attempt to run away...\n'''
         succeed_flee = self.model["player"]["agility"] * p_run_chance > self.model["enemy"]["agility"] * e_block_chance * e_block_mod
         if succeed_flee:
-            self.view.main_frame.txt.insert(tk.END, '''You successfully flee!\n''')
+            self.output.output = '''You successfully flee!\n'''
             self.end_fight()
         else:
-            self.view.main_frame.txt.insert(tk.END, f'''...but the {self.model["enemy"]["name"]} blocks you from running away!\n''')
+            self.output.output = f'''...but the {self.model["enemy"]["name"]} blocks you from running away!\n'''
             self.enemy_turn()
 
     def player_cast_magic(self, *_):
@@ -393,11 +395,11 @@ class Battle():
 
         can_cast = self.model["player"]["mp"] > spell_cost.get(spell)
         if not can_cast:
-            self.view.append_output(f'''Player tries to cast {spell}, but doesn't have enough MP!\n''')
+            self.output.output = f'''Player tries to cast {spell}, but doesn't have enough MP!\n'''
         else:
             self.model["player"]["mp"] -= spell_cost.get(spell)
             if self.model["player"]["p_stop"]:
-                self.view.append_output(f'''Player casts {spell}, but their magic has been sealed!\n''')
+                self.output.output = f'''Player casts {spell}, but their magic has been sealed!\n'''
             else:
                 spell_switch.get(spell)()
         self.view.update_ptext(self.model["player"])
@@ -425,7 +427,7 @@ class Battle():
                 tk.END,
                 f'''Player casts {spell_name}! Player is healed {str(heal_total)} hit points!\n'''
             )
-        print("We healed!")
+
 
     def calc_heal(self, heal_range):
         heal_max = self.model["player"]["maxhp"] - self.model["player"]["hp"]
@@ -493,7 +495,34 @@ class Battle():
             )
             self.model["enemy"]["e_stop"] = True
 
+class PlayerBattle():
+    '''Player Battle Class'''
+    def __init__(self, p_model, output):
+        self.model = p_model
+        self.agi = p_model["agility"]
+        self.asleep = p_model["p_sleep"]
+        self.output = output
+
+    def is_asleep(self):
+        if self.asleep:
+            self.model["sleep_count"] -= 1
+            if random.randint(1,2) == 2 or self.model["sleep_count"] <= 0:
+                self.asleep = False
+                self.model["sleep_count"] = 6
+            if self.asleep is False:
+                self.output.output = "You wake up!\n"
+                return False
+            else:
+                self.output.output = "You're still asleep...\n"
+                return True
+        return False
 
 
+class EnemyBattle():
+    '''Enemy Battle Class'''
+    def __init__(self, e_model):
+        self.model = e_model
+        self.name = e_model["name"]
+        self.agi = e_model["agility"]
 
 
